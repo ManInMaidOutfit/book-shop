@@ -115,6 +115,53 @@ List<Publisher> findAllWithJoinFetch();
 
 Коммит: `34aa507`.
 
+## Ветка fail/eager-everything: глобальный EAGER
+
+**Идея:** решить все проблемы с ленивой загрузкой, пометив все связи как `FetchType.EAGER`
+и добавив `@Fetch(FetchMode.JOIN)` для принудительной оптимизации.
+
+```java
+
+@OneToMany(mappedBy = "publisher", fetch = FetchType.EAGER)
+@org.hibernate.annotations.Fetch(org.hibernate.annotations.FetchMode.JOIN)
+private List<Book> books = new ArrayList<>();
+
+@ManyToMany(fetch = FetchType.EAGER)
+@JoinTable(name = "book_author", ...)
+@org.hibernate.annotations.Fetch(org.hibernate.annotations.FetchMode.JOIN)
+private List<Author> authors = new ArrayList<>();
+```
+
+Сценарий: publisherRepository.findAllWithJoinFetch(), затем итерация, затем bookRepository.findAll().
+Результат: 1 запрос на издателей с книгами + 12 отдельных SELECT-запросов на авторов + 1 запрос на книги.
+Итого: 14 запросов вместо ожидаемого 1-2.
+
+-- Запрос 1: издатели + книги (JOIN FETCH сработал)
+select distinct p1_0.id, ... from publisher p1_0 left join book b1_0 ...
+
+-- Запросы 2-13: Hibernate проигнорировал @Fetch(JOIN) для authors
+select a1_0.book_id, ... from book_author a1_0 join author a1_1 ... where a1_0.book_id=?
+-- (повторяется 12 раз)
+
+-- Запрос 14: книги (без JOIN на авторов, т.к. они уже в L1-кэше)
+select b1_0.id, ... from book b1_0
+
+Наблюдения:
+
+- Hibernate молча проигнорировал @Fetch(JOIN) для вложенной коллекции Book.authors,
+чтобы избежать декартова произведения трёх таблиц (Publisher × Book × Author);
+вместо ожидаемого одного большого JOIN получилась классическая N+1-атака на 12 запросов;
+- последующий bookRepository.findAll() не породил новых запросов к авторам —
+все данные уже были в Persistence Context (L1-кэш), что маскирует проблему;
+- разработчик полностью теряет контроль над генерируемым SQL.
+
+Вывод: FetchType.EAGER — антипаттерн. Он делает поведение непредсказуемым:
+вместо гарантированного JOIN можно получить скрытый N+1, который трудно диагностировать.
+Управление загрузкой должно быть явным и локальным (через @EntityGraph или JOIN FETCH
+в конкретных методах), а не глобальным.
+
+Коммит: <ХЭШ>
+
 ## Таблица результатов
 
 | Вариант | Запросов (6 издателей) | Статус |
@@ -122,6 +169,7 @@ List<Publisher> findAllWithJoinFetch();
 | Baseline | 7 | точка отсчёта |
 | @EntityGraph | 1 | работает |
 | @Query + JOIN FETCH | 1 | работает |
+| fail/eager-everything | 14 | провал: скрытый N+1 |
 
 ## Дорожная карта
 
