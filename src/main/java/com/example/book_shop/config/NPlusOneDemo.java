@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -37,5 +39,10 @@ public class NPlusOneDemo implements CommandLineRunner
             int books = publisher.getBooks().size();
             logger.info("{} — {} книг", publisher.getName(), books);
         }
+
+        Page<Publisher> pagedPublishers = publisherRepository.findAllWithBooksPaged(PageRequest.of(0, 2));
+
+        logger.info("Запрошено на странице: 2 издателя. Фактически получено: {}", pagedPublishers.getContent().size());
+        logger.info("Всего издателей в базе (по подсчёту Hibernate): {}", pagedPublishers.getTotalElements());
     }
 }
