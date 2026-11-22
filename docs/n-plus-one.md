@@ -148,6 +148,40 @@ select b1_0.publisher_id, b1_0.id, ... from book b1_0 where b1_0.publisher_id in
 
 Коммит: `08f848e`.
 
+## Эксперимент 5: DTO-проекция - 7 -> 1
+
+**Идея:** вместо загрузки тяжёлых сущностей использовать лёгкий DTO, конструируемый прямо в JPQL.
+
+```java
+// PublisherDto.java (обычный POJO, без аннотаций JPA)
+public class PublisherDto {
+    private final Long id;
+    private final String name;
+    private final long bookCount;
+    // конструктор, геттеры...
+}
+
+// PublisherRepository.java
+@Query("SELECT new com.example.book_shop.entity.PublisherDto(p.id, p.name, COUNT(b.id)) " +
+       "FROM Publisher p LEFT JOIN p.books b GROUP BY p.id, p.name")
+List<PublisherDto> findAllPublishersWithBookCount();
+```
+
+Результат: 1 запрос с JOIN и GROUP BY.
+
+select p1_0.id, p1_0.name, count(b1_0.id) 
+from publisher p1_0 
+left join book b1_0 on p1_0.id=b1_0.publisher_id 
+group by p1_0.id, p1_0.name
+
+Наблюдения:
+- N+1 решён на корню: агрегация (COUNT) происходит на стороне базы данных;
+- Hibernate не создаёт сущности Publisher и Book, что экономит память и процессорное время (нет Dirty Checking);
+- идеально подходит для read-only операций и отображения списков;
+- требует написания JPQL и создания DTO-классов, что увеличивает объём кода по сравнению с @EntityGraph.
+
+Коммит: <ХЭШ>.
+
 ## Таблица результатов
 
 | Вариант | Запросов (6 издателей) | Статус |
@@ -156,9 +190,12 @@ select b1_0.publisher_id, b1_0.id, ... from book b1_0 where b1_0.publisher_id in
 | @EntityGraph | 1 | работает |
 | @Query + JOIN FETCH | 1 | работает |
 | @BatchSize (size=3) | 3 | работает (оптимально для больших данных и пагинации) |
+| @EntityGraph + @Query | 1 | работает (в новых версиях Spring Data JPA 4+) |
+| DTO-проекция | 1 | работает (лучшая производительность для read-only) |
 | fail/eager-everything | 14 | провал: скрытый N+1 |
 | fail/join-fetch-two-bags | Краш приложения | MultipleBagFetchException |
 | fail/join-fetch-pagination | Краш/Неверный результат | Игнорирование LIMIT, загрузка в память |
+
 
 ## Дорожная карта
 

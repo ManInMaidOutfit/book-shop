@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.book_shop.entity.Publisher;
+import com.example.book_shop.entity.PublisherDTO;
 import com.example.book_shop.repository.PublisherRepository;
 
 @Component 
@@ -29,13 +30,12 @@ public class NPlusOneDemo implements CommandLineRunner
     @Transactional 
     public void run(String...args)
     {
-        List<Publisher> publishers = publisherRepository.findAll();
-        logger.info("Найдено издателей: {}", publishers.size());
+        List<PublisherDTO> dtos = publisherRepository.findAllPublishersWithBookCount();
+        logger.info("Найдено DTO: {}", dtos.size());
 
-        for(Publisher publisher : publishers)
+        for (PublisherDTO dto : dtos)
         {
-            int books = publisher.getBooks().size();
-            logger.info("{} — {} книг", publisher.getName(), books);
+            logger.info("{} — {} книг (DTO)", dto.getName(), dto.getBookCount());
         }
     }
 }
