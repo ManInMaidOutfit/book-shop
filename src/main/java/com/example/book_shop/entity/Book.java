@@ -34,10 +34,11 @@ public class Book
     @JoinColumn(name = "publisher_id")
     private Publisher publisher;  
 
-    @ManyToMany(fetch = FetchType.LAZY)
+    @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "book_author", 
     joinColumns = @JoinColumn(name = "book_id"), 
     inverseJoinColumns = @JoinColumn(name = "author_id"))
+    @org.hibernate.annotations.Fetch(org.hibernate.annotations.FetchMode.JOIN) 
     private List<Author> authors = new ArrayList<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
