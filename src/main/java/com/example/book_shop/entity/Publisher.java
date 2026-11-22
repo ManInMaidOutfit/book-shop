@@ -3,6 +3,8 @@ package com.example.book_shop.entity;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.hibernate.annotations.BatchSize;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -24,6 +26,7 @@ public class Publisher
     private String country;
 
     @OneToMany(mappedBy = "publisher")
+    @BatchSize(size = 3) 
     private List<Book> books = new ArrayList<>();
     
     public Publisher() {}

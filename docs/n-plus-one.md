@@ -115,6 +115,39 @@ List<Publisher> findAllWithJoinFetch();
 
 Коммит: `34aa507`.
 
+## Эксперимент 3: @BatchSize - 7 -> 3
+
+**Идея:** решить проблему N+1 без использования `JOIN FETCH`, избегая декартовых произведений и проблем с пагинацией.
+
+```java
+// Publisher.java
+@OneToMany(mappedBy = "publisher", cascade = CascadeType.ALL, orphanRemoval = true)
+@org.hibernate.annotations.BatchSize(size = 3)
+private List<Book> books = new ArrayList<>();
+
+// PublisherRepository.java (метод должен быть "чистым")
+List<Publisher> findAll();
+```
+
+Результат: 3 запроса вместо 7 (1 на издателей + 2 батча по 3 книги).
+
+-- Запрос 1: издатели
+select p1_0.id, p1_0.country, p1_0.name from publisher p1_0
+
+-- Запрос 2: книги для первых 3-х издателей
+select b1_0.publisher_id, b1_0.id, ... from book b1_0 where b1_0.publisher_id in (?, ?, ?)
+
+-- Запрос 3: книги для остальных 3-х издателей
+select b1_0.publisher_id, b1_0.id, ... from book b1_0 where b1_0.publisher_id in (?, ?, ?)
+
+Наблюдения:
+- @BatchSize работает прозрачно на уровне сущности, не требуя изменений в JPQL-запросах репозитория;
+- нет декартова произведения строк (в отличие от JOIN FETCH);
+- идеально совместим с пагинацией (Pageable), так как основной запрос остаётся простым SELECT без JOIN;
+- важный нюанс: метод репозитория должен быть «чистым». Если на findAll() повесить @EntityGraph, он перебьёт @BatchSize и вернёт JOIN-запрос.
+
+Коммит: <ХЭШ>.
+
 ## Таблица результатов
 
 | Вариант | Запросов (6 издателей) | Статус |
@@ -122,6 +155,10 @@ List<Publisher> findAllWithJoinFetch();
 | Baseline | 7 | точка отсчёта |
 | @EntityGraph | 1 | работает |
 | @Query + JOIN FETCH | 1 | работает |
+| @BatchSize (size=3) | 3 | работает (оптимально для больших данных и пагинации) |
+| fail/eager-everything | 14 | провал: скрытый N+1 |
+| fail/join-fetch-two-bags | Краш приложения | MultipleBagFetchException |
+| fail/join-fetch-pagination | Краш/Неверный результат | Игнорирование LIMIT, загрузка в память |
 
 ## Дорожная карта
 

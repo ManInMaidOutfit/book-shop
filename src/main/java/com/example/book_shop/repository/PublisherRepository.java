@@ -10,8 +10,6 @@ import com.example.book_shop.entity.Publisher;
 
 public interface PublisherRepository extends JpaRepository<Publisher, Long>
 {
-    @Override 
-    @EntityGraph(attributePaths = "books")
     List<Publisher> findAll(); 
 
     @Query("select distinct p from Publisher p left join fetch p.books")

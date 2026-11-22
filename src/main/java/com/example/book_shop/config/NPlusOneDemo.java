@@ -29,7 +29,7 @@ public class NPlusOneDemo implements CommandLineRunner
     @Transactional 
     public void run(String...args)
     {
-        List<Publisher> publishers = publisherRepository.findAllWithJoinFetch();
+        List<Publisher> publishers = publisherRepository.findAll();
         logger.info("Найдено издателей: {}", publishers.size());
 
         for(Publisher publisher : publishers)
