@@ -128,7 +128,7 @@ private List<Book> books = new ArrayList<>();
 // PublisherRepository.java (метод должен быть "чистым")
 List<Publisher> findAll();
 ```
-
+```sql
 Результат: 3 запроса вместо 7 (1 на издателей + 2 батча по 3 книги).
 
 -- Запрос 1: издатели
@@ -139,6 +139,7 @@ select b1_0.publisher_id, b1_0.id, ... from book b1_0 where b1_0.publisher_id in
 
 -- Запрос 3: книги для остальных 3-х издателей
 select b1_0.publisher_id, b1_0.id, ... from book b1_0 where b1_0.publisher_id in (?, ?, ?)
+```
 
 Наблюдения:
 - @BatchSize работает прозрачно на уровне сущности, не требуя изменений в JPQL-запросах репозитория;
@@ -148,6 +149,32 @@ select b1_0.publisher_id, b1_0.id, ... from book b1_0 where b1_0.publisher_id in
 
 Коммит: `08f848e`.
 
+## Эксперимент 4: @EntityGraph + @Query — работает!
+
+**Идея:** проверить, можно ли комбинировать кастомный `@Query` с `@EntityGraph` для оптимизации выборки.
+
+```java
+// PublisherRepository.java
+@Query("SELECT p FROM Publisher p")
+@EntityGraph(attributePaths = "books")
+List<Publisher> findAllWithCustomQueryAndGraph();
+```
+
+Результат: 1 запрос с `LEFT JOIN`. Работает корректно.
+
+```sql
+select p1_0.id, b1_0.publisher_id, b1_0.id, ... 
+from publisher p1_0 
+left join book b1_0 on p1_0.id=b1_0.publisher_id
+```
+
+Наблюдения:
+- В старых версиях Spring Data JPA (2.x) и Hibernate (5.x) @EntityGraph молча игнорировался при наличии @Query, что приводило к N+1;
+- В Spring Data JPA 4.2.0 + Hibernate 7.4 эта проблема исправлена: аннотации корректно комбинируются;
+- это позволяет гибко настраивать запросы (добавлять WHERE, ORDER BY) без потери оптимизации загрузки коллекций.
+
+Коммит: <ХЭШ>.
+
 ## Таблица результатов
 
 | Вариант | Запросов (6 издателей) | Статус |
@@ -156,6 +183,7 @@ select b1_0.publisher_id, b1_0.id, ... from book b1_0 where b1_0.publisher_id in
 | @EntityGraph | 1 | работает |
 | @Query + JOIN FETCH | 1 | работает |
 | @BatchSize (size=3) | 3 | работает (оптимально для больших данных и пагинации) |
+| @EntityGraph + @Query | 1 | работает (в новых версиях Spring Data JPA 4+) |
 | fail/eager-everything | 14 | провал: скрытый N+1 |
 | fail/join-fetch-two-bags | Краш приложения | MultipleBagFetchException |
 | fail/join-fetch-pagination | Краш/Неверный результат | Игнорирование LIMIT, загрузка в память |

@@ -14,4 +14,8 @@ public interface PublisherRepository extends JpaRepository<Publisher, Long>
 
     @Query("select distinct p from Publisher p left join fetch p.books")
     List<Publisher> findAllWithJoinFetch();
+
+    @Query("select p from Publisher p")
+    @EntityGraph(attributePaths = "books")  
+    List<Publisher> findAllWithCustomQueryAndGraph();
 }
