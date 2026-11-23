@@ -9,7 +9,6 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.book_shop.entity.Publisher;
 import com.example.book_shop.entity.PublisherDTO;
 import com.example.book_shop.repository.PublisherRepository;
 
